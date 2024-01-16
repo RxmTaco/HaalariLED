@@ -7,7 +7,6 @@
 #include <Preferences.h>
 
 // Custom headers
-#include "secrets.h"
 #include "Pix_Ascii.h"
 
 // LED options
@@ -20,33 +19,35 @@
 const uint8_t PORT =    80;
 int keyIndex = 0;             // Needed for WEP
 
-/*
+// Preferences can be reset to "factory" by shorting pin 5 to GND
 // Settings structure
 typedef struct {
-  String  submittedText = "<SOURCE>    "; // The initial text to be shown
-  uint    scrollDelay = 150;              // Time between column change while scrolling in milliseconds
-  uint8_t textR = 0;                     // Text color RGB values
-  uint8_t textG = 0;
-  uint8_t textB = 255;
-  uint8_t bgR = 0;                        // Background color RGB values
-  uint8_t bgG = 0;
-  uint8_t bgB = 0;
-} settings;
-*/
+  String  submittedText;  // The initial text to be shown
+  uint    scrollDelay;    // Time between column change while scrolling in milliseconds
+  uint8_t textR;          // Text color RGB values
+  uint8_t textG;
+  uint8_t textB;
+  uint8_t bgR;            // Background color RGB values
+  uint8_t bgG;
+  uint8_t bgB;
+  String ssid;            // Default SSID:      ESP-32-HaalariLED
+  String passwd;          // Default Password:  12345678
+} settings_t;
+
+settings_t settings;
 
 Preferences prefs;
-
-//
-// Declare SECRETS_SSID and SECRETS_PASSWD in secrets.h for WIFI SSID and password!!!
-//
 
 WiFiServer server(PORT);
 
 Adafruit_NeoPixel pixels(LED_NUM, LED_PIN, NEO_GRB + NEO_KHZ800);
 
 void setup() {
+  pinMode(5, INPUT_PULLUP);
   pixels.begin();
   pixels.clear();
+
+  initPrefs(prefs, settings); // Load / initialize variables from flash
 
   // Set all leds to 20,20,20
   for(int i = 0; i < LED_NUM; i ++){
@@ -56,22 +57,26 @@ void setup() {
   }
 
   WiFi.mode(WIFI_AP);
-  WiFi.softAP(SECRETS_SSID, SECRETS_PASSWD);
+  WiFi.softAP(settings.ssid, settings.passwd);
 
   server.begin();
 }
 
-String  submittedText = "<SOURCE>    "; // The initial text to be shown
-uint    scrollDelay = 150;              // Time between column change while scrolling in milliseconds
-uint8_t textR = 0;                     // Text color RGB values
-uint8_t textG = 0;
-uint8_t textB = 255;
-
-uint8_t bgR = 0;                        // Background color RGB values
-uint8_t bgG = 0;
-uint8_t bgB = 0;
-
+bool wrongpw = false;
+bool credchanged = false;
+void(* resetFunc) (void) = 0;  // declare reset fuction at address 0
 void loop() {
+  if(digitalRead(5) == 0){
+    prefs.begin("configs");
+    prefs.clear();
+    resetFunc(); // call reset
+  }
+
+  if(credchanged){
+    credchanged = false;
+    resetFunc(); // call reset on credential change
+  }
+
   WiFiClient client = server.available(); // Check if a client has connected
 
   if (client) {
@@ -93,21 +98,33 @@ void loop() {
         client.println("<html><body>");
         client.println("<div id='cont'>");
         client.println("<form action='submit' method='post'>"); // Form parameters
-        client.printf("Text: <input type='text' name='inputText' placeholder='%s'>", submittedText); client.println("<br>");
+        client.printf("Text: <input type='text' name='inputText' placeholder='%s'>", settings.submittedText); client.println("<br>");
         client.println("<br>");
-        client.printf("Scroll Delay: <input type='text' name='scrollDelay' placeholder='%i'>", scrollDelay); client.println("<br>");
+        client.printf("Scroll Delay: <input type='text' name='scrollDelay' placeholder='%i'>", settings.scrollDelay); client.println("<br>");
         client.println("<br>");
-        client.println("Text properties:");
+        client.println("Color values 0 - 255");
         client.println("<br>");
-        client.printf("Text R: <input type='text' name='colorR' placeholder='%i'>", textR); client.println("<br>");
-        client.printf("Text G: <input type='text' name='colorG' placeholder='%i'>", textG); client.println("<br>");
-        client.printf("Text B: <input type='text' name='colorB' placeholder='%i'>", textB); client.println("<br>");
+        client.println("Text color properties:");
+        client.println("<br>");
+        client.printf("Text R: <input type='text' name='colorR' placeholder='%i'>", settings.textR); client.println("<br>");
+        client.printf("Text G: <input type='text' name='colorG' placeholder='%i'>", settings.textG); client.println("<br>");
+        client.printf("Text B: <input type='text' name='colorB' placeholder='%i'>", settings.textB); client.println("<br>");
         client.println("<br>");
         client.println("Background:"); 
         client.println("<br>");
-        client.printf("Background R: <input type='text' name='bgR' placeholder='%i'>", bgR); client.println("<br>");
-        client.printf("Background G: <input type='text' name='bgG' placeholder='%i'>", bgG); client.println("<br>");
-        client.printf("Background B: <input type='text' name='bgB' placeholder='%i'>", bgB); client.println("<br>");
+        client.printf("Background R: <input type='text' name='bgR' placeholder='%i'>", settings.bgR); client.println("<br>");
+        client.printf("Background G: <input type='text' name='bgG' placeholder='%i'>", settings.bgG); client.println("<br>");
+        client.printf("Background B: <input type='text' name='bgB' placeholder='%i'>", settings.bgB); client.println("<br>");
+        client.println("<br>");
+        client.println("WiFi:"); 
+        client.println("<br>");
+        client.println("New SSID: <input type='text' name='ssid'>"); client.println("<br>");
+        client.println("New Password: <input type='password' name='passwd'>"); client.println("<br>");
+        client.println("Old Password: <input type='password' name='passwdold'>"); client.println("<br>");
+        if(wrongpw){
+          client.println("WRONG PASSWORD");
+          wrongpw = false;
+        }
         client.println("<input type='submit' value='Submit'>");
         client.println("</form>");
         client.println("</div>");
@@ -125,14 +142,15 @@ void loop() {
     delay(100); // Small delay to allow the client to process the response
     client.stop(); // Disconnect the client
   }
-  displayText(submittedText);
+  savePrefs(prefs, settings);
+  displayText(settings.submittedText);
 }
 
 uint8_t updateIndex = 0;
 unsigned long currentMillis = 0;
 
 void displayText(String text) {
-  if(millis() - currentMillis > scrollDelay){
+  if(millis() - currentMillis > settings.scrollDelay){
     pixels.clear();
 
     int charNum = text.length();
@@ -170,9 +188,9 @@ void displayText(String text) {
             row = ROWS - 1 - i;
           int enabled = dispMatrix[row][sourceColumn];
           pixels.setPixelColor(i + j * ROWS, pixels.Color(
-            (enabled)? textR : bgR, 
-            (enabled)? textG : bgG,
-            (enabled)? textB : bgB));
+            (enabled)? settings.textR : settings.bgR, 
+            (enabled)? settings.textG : settings.bgG,
+            (enabled)? settings.textB : settings.bgB));
         }
       }
     } else { // static display
@@ -186,9 +204,9 @@ void displayText(String text) {
             row = ROWS - 1 - j;
           int enabled = dispMatrix[row][i];
           pixels.setPixelColor(j + i * ROWS, pixels.Color(
-            (enabled)? textR : bgR, 
-            (enabled)? textG : bgG,
-            (enabled)? textB : bgB));
+            (enabled)? settings.textR : settings.bgR, 
+            (enabled)? settings.textG : settings.bgG,
+            (enabled)? settings.textB : settings.bgB));
         }
       }
     }
@@ -244,7 +262,7 @@ void extractParameters(String request) {
     }
     String inputValue = request.substring(textPosition + 10, nextParameterPosition);  // Apply the value to a global parameter
     if (!inputValue.isEmpty()) {                                                      // If the parameter is null, continue to next
-      submittedText = urldecode(inputValue);
+      settings.submittedText = urldecode(inputValue);
     }
   }
 
@@ -257,7 +275,7 @@ void extractParameters(String request) {
     }
     String inputValue = request.substring(textPosition + 12, nextParameterPosition);
     if (!inputValue.isEmpty()) {
-      scrollDelay = inputValue.toInt();
+      settings.scrollDelay = inputValue.toInt();
     }
   }
 
@@ -270,7 +288,7 @@ void extractParameters(String request) {
     }
     String inputValue = request.substring(textPosition + 7, nextParameterPosition);
     if (!inputValue.isEmpty()) {
-      textR = inputValue.toInt();
+      settings.textR = inputValue.toInt();
     }
   }
 
@@ -283,7 +301,7 @@ void extractParameters(String request) {
     }
     String inputValue = request.substring(textPosition + 7, nextParameterPosition);
     if (!inputValue.isEmpty()) {
-      textG = inputValue.toInt();
+      settings.textG = inputValue.toInt();
     }
   }
 
@@ -296,7 +314,7 @@ void extractParameters(String request) {
     }
     String inputValue = request.substring(textPosition + 7, nextParameterPosition);
     if (!inputValue.isEmpty()) {
-      textB = inputValue.toInt();
+      settings.textB = inputValue.toInt();
     }
   }
 
@@ -309,7 +327,7 @@ void extractParameters(String request) {
     }
     String inputValue = request.substring(textPosition + 4, nextParameterPosition);
     if (!inputValue.isEmpty()) {
-      bgR = inputValue.toInt();
+      settings.bgR = inputValue.toInt();
     }
   }
 
@@ -322,7 +340,7 @@ void extractParameters(String request) {
     }
     String inputValue = request.substring(textPosition + 4, nextParameterPosition);
     if (!inputValue.isEmpty()) {
-      bgG = inputValue.toInt();
+      settings.bgG = inputValue.toInt();
     }
   }
 
@@ -335,7 +353,159 @@ void extractParameters(String request) {
     }
     String inputValue = request.substring(textPosition + 4, nextParameterPosition);
     if (!inputValue.isEmpty()) {
-      bgB = inputValue.toInt();
+      settings.bgB = inputValue.toInt();
     }
   }
+
+  // WiFi
+  // Password
+  bool pwset = false;
+  textPosition = request.indexOf("passwdold=");
+  if (textPosition != -1){
+    int nextParameterPosition = request.indexOf("&", textPosition);
+    if (nextParameterPosition == -1) {
+      nextParameterPosition = request.length();
+    }
+    String inputValue = request.substring(textPosition + 10, nextParameterPosition);
+    if (!inputValue.isEmpty()) {
+      if(inputValue != settings.passwd){
+        wrongpw = true;
+      }
+      pwset = true;
+    }
+
+    // continue to change password
+    textPosition = request.indexOf("passwd=");
+    if (textPosition != -1){
+      int nextParameterPosition = request.indexOf("&", textPosition);
+      if (nextParameterPosition == -1) {
+        nextParameterPosition = request.length();
+      }
+      String inputValue = request.substring(textPosition + 7, nextParameterPosition);
+      if (!inputValue.isEmpty()) {
+        if(!wrongpw && pwset){
+          settings.passwd = inputValue; // Change passwd on success
+          credchanged = true;
+        }
+        else wrongpw = true;
+      }
+    }
+
+    // continue to check for a changed SSID
+    textPosition = request.indexOf("ssid=");
+    if (textPosition != -1){
+      int nextParameterPosition = request.indexOf("&", textPosition);
+      if (nextParameterPosition == -1) {
+        nextParameterPosition = request.length();
+      }
+      String inputValue = request.substring(textPosition + 5, nextParameterPosition);
+      if (!inputValue.isEmpty()) {
+        if(!wrongpw && pwset){
+          settings.ssid = inputValue;
+          credchanged = true;
+        }
+        else wrongpw = true;
+      }
+    }
+  }
+}
+
+void savePrefs(Preferences& pref, settings_t& set){
+  prefs.begin("configs", false); // Open preferences: settings namespace, false for RW mode
+
+  pref.putString("submittedText", set.submittedText);
+  pref.putUInt("scrollDelay", set.scrollDelay);
+
+  pref.putUInt("textR", set.textR);
+  pref.putUInt("textG", set.textG);
+  pref.putUInt("textB", set.textB);
+
+  pref.putUInt("bgR", set.bgR);
+  pref.putUInt("bgG", set.bgG);
+  pref.putUInt("bgB", set.bgB);
+
+  pref.putString("ssid", set.ssid);
+  pref.putString("passwd", set.passwd);
+
+  pref.end();
+}
+
+void initPrefs(Preferences& pref, settings_t& set){
+  prefs.begin("configs", false); // Open preferences: settings namespace, false for RW mode
+
+  // WIFI
+  if(not pref.isKey("ssid")) {
+    set.ssid = "ESP-32-HaalariLED";
+    pref.putString("ssid", set.ssid);
+  } else {
+    set.ssid = pref.getString("ssid");
+  }
+
+  if(not pref.isKey("passwd")) {
+    set.passwd = "12345678";
+    pref.putString("passwd", set.passwd);
+  } else {
+    set.passwd = pref.getString("passwd");
+  }
+
+  // TEXT
+  if(not pref.isKey("submittedText")) {
+    set.submittedText = "<SOURCE>   ";
+    pref.putString("submittedText", set.submittedText);
+  } else {
+    set.submittedText = pref.getString("submittedText");
+  }
+
+  if(not pref.isKey("scrollDelay")) {
+    set.scrollDelay = 150;
+    pref.putUInt("scrollDelay", set.scrollDelay);
+  } else {
+    set.scrollDelay = pref.getUInt("scrollDelay");
+  }
+
+  // TEXT COLOR
+  if(not pref.isKey("textR")){
+    set.textR = 0;
+    pref.putUInt("textR", set.textR);
+  } else {
+    set.textR = (uint8_t)pref.getUInt("textR");
+  }
+
+  if(not pref.isKey("textG")){
+    set.textG = 0;
+    pref.putUInt("textG", set.textG);
+  } else {
+    set.textG = (uint8_t)pref.getUInt("textG");
+  }
+
+  if(not pref.isKey("textB")){
+    set.textB = 250;
+    pref.putUInt("textB", set.textB);
+  } else {
+    set.textB = (uint8_t)pref.getUInt("textB");
+  }
+
+  // BACKGROUND COLOR
+  if(not pref.isKey("bgR")){
+    set.bgR = 0;
+    pref.putUInt("bgR", set.bgR);
+  } else {
+    set.bgR = (uint8_t)pref.getUInt("bgR");
+  }
+
+  if(not pref.isKey("bgG")){
+    set.bgG = 0;
+    pref.putUInt("bgG", set.bgG);
+  } else {
+    set.bgG = (uint8_t)pref.getUInt("bgG");
+  }
+
+  if(not pref.isKey("bgB")){
+    set.bgB = 0;
+    pref.putUInt("bgB", set.bgB);
+  } else {
+    set.bgB = (uint8_t)pref.getUInt("bgB");
+  }
+
+  pref.end(); // Clsoe preferences
 }
