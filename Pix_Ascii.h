@@ -547,11 +547,21 @@ const uint8_t pix_Minus[7][5] = {
 const uint8_t pix_Slash[7][5] = {
     {0, 0, 0, 0, 1},
     {0, 0, 0, 1, 0},
+    {0, 0, 0, 1, 0},
     {0, 0, 1, 0, 0},
     {0, 1, 0, 0, 0},
+    {0, 1, 0, 0, 0},
+    {1, 0, 0, 0, 0}
+};
+
+const uint8_t pix_BackSlash[7][5] = {
     {1, 0, 0, 0, 0},
-    {0, 0, 0, 0, 0},
-    {0, 0, 0, 0, 0}
+    {0, 1, 0, 0, 0},
+    {0, 1, 0, 0, 0},
+    {0, 0, 1, 0, 0},
+    {0, 0, 0, 1, 0},
+    {0, 0, 0, 1, 0},
+    {0, 0, 0, 0, 1}
 };
 
 const uint8_t pix_Colon[7][5] = {
@@ -1280,6 +1290,17 @@ const uint8_t pix_Slash[8][5] = {
   {1, 0, 0, 0, 0}
 };
 
+const uint8_t pix_BackSlash[8][5] = {
+  {1, 0, 0, 0, 0},
+  {0, 1, 0, 0, 0},
+  {0, 1, 0, 0, 0},
+  {0, 0, 1, 0, 0},
+  {0, 0, 1, 0, 0},
+  {0, 0, 0, 1, 0},
+  {0, 0, 0, 1, 0},
+  {0, 0, 0, 0, 1}
+};
+
 const uint8_t pix_LessThan[8][5] = {
   {0, 0, 0, 0, 0},
   {0, 0, 0, 0, 1},
@@ -1494,6 +1515,8 @@ const uint8_t (&getPixelMatrix(char character))[ROWS][5] {
             return pix_HalfBlock;
         case '\'':
             return pix_SingleQuote;
+        case '\\':
+            return pix_BackSlash;
 
         default:
             printf("Character not supported: %c\n", character);

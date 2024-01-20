@@ -5,19 +5,24 @@
 #include <WiFi.h>
 #include <Adafruit_NeoPixel.h>
 #include <Preferences.h>
+#include <ESPmDNS.h>
 
 // Custom headers
 #include "Pix_Ascii.h"
 
 // LED options
-#define LED_PIN         3
-#define LED_ROWS        8
-#define LED_COLS        32
+#define LED_PIN         3                   // Data output pin for LED display
+#define LED_ROWS        8                   // Number of rows in the matrix
+#define LED_COLS        32                  // Number of columns in the matrix
 #define LED_NUM         (LED_ROWS*LED_COLS)
 
 // WIFI options
-const uint8_t PORT =    80;
-int keyIndex = 0;             // Needed for WEP
+const uint8_t PORT = 80;                    // Server port (HTTP default 80)
+const int keyIndex = 0;                     // Needed for WEP
+const char* hostname = "esp";               // Name for the host device. You can connect to the esp with <hostname>.local
+const IPAddress local_ip(192,168,1,1);      // Server IP
+const IPAddress gateway(192,168,1,1);       // Gateway IP
+const IPAddress subnet(255,255,255,0);      // Subnet mask
 
 // Preferences can be reset to "factory" by shorting pin 5 to GND
 // Settings structure
@@ -30,8 +35,9 @@ typedef struct {
   uint8_t bgR;            // Background color RGB values
   uint8_t bgG;
   uint8_t bgB;
-  String ssid;            // Default SSID:      ESP-32-HaalariLED
-  String passwd;          // Default Password:  12345678
+  uint8_t gap;
+  String  ssid;           // Default SSID:      ESP-32-HaalariLED
+  String  passwd;         // Default Password:  12345678
 } settings_t;
 
 settings_t settings;
@@ -43,6 +49,11 @@ WiFiServer server(PORT);
 Adafruit_NeoPixel pixels(LED_NUM, LED_PIN, NEO_GRB + NEO_KHZ800);
 
 void setup() {
+  // Convert hostname to lower case
+  String htemp = (String)hostname;
+  htemp.toLowerCase();
+  hostname = htemp.c_str();
+
   pinMode(5, INPUT_PULLUP);
   pixels.begin();
   pixels.clear();
@@ -57,9 +68,14 @@ void setup() {
   }
 
   WiFi.mode(WIFI_AP);
+  WiFi.softAPConfig(local_ip, gateway, subnet);
+  WiFi.softAPsetHostname(hostname);
   WiFi.softAP(settings.ssid, settings.passwd);
 
   server.begin();
+
+  // DNS resolver
+  MDNS.begin(hostname);
 }
 
 bool wrongpw = false;
@@ -101,6 +117,7 @@ void loop() {
         client.printf("Text: <input type='text' name='inputText' placeholder='%s'>", settings.submittedText); client.println("<br>");
         client.println("<br>");
         client.printf("Scroll Delay: <input type='text' name='scrollDelay' placeholder='%i'>", settings.scrollDelay); client.println("<br>");
+        client.printf("Letter gap: <input type='text' name='gap' placeholder='%i'>", settings.gap); client.println("<br>");
         client.println("<br>");
         client.println("Color values 0 - 255");
         client.println("<br>");
@@ -122,15 +139,15 @@ void loop() {
         client.println("New Password: <input type='password' name='passwd'>"); client.println("<br>");
         client.println("Old Password: <input type='password' name='passwdold'>"); client.println("<br>");
         if(wrongpw){
-          client.println("WRONG PASSWORD");
+          client.println("WRONG PASSWORD<br>");
           wrongpw = false;
         }
         client.println("<input type='submit' value='Submit'>");
         client.println("</form>");
         client.println("</div>");
-        //client.println("<br>");
+        client.println("<br>");
         //client.println(request);  // Display request for debugging
-        //client.println("<br>");
+        client.println("<br>");
         client.println("<style>");  // CSS styling
         client.println("*{background:#131313;color:#fff;}body{scale:2;width:100%;height:100vh;display:flex;justify-content:center;align-items:center;}");
         client.println("#cont{border:1px solid #ff00dd;padding:20px;border-radius:20px;box-shadow:0 0 10px #ff00dd;}");
@@ -154,10 +171,10 @@ void displayText(String text) {
     pixels.clear();
 
     int charNum = text.length();
-    uint8_t cols = 6; // 5 for character and 1 for a blank space between characters
+    uint8_t cols = 5 + settings.gap; // 5 for character and 1 for a blank space between characters
 
     // create display matrix buffer
-    int columnLimit = charNum + charNum * 5;
+    int columnLimit = (charNum * cols);
     int dispMatrix[ROWS][columnLimit]; // make a 2D array of the enabled pixels
 
     // fill matrix buffer
@@ -168,10 +185,10 @@ void displayText(String text) {
 
       for(int i = 0; i < cols; i++){
         for(int j = 0; j < ROWS; j++){
-          if(i == cols - 1)
+          if(i >= cols - settings.gap)
             dispMatrix[j][k * cols + i] = 0;
           else
-          dispMatrix[j][k * cols + i] = currentChar[j][i];
+            dispMatrix[j][k * cols + i] = currentChar[j][i];
         }
       }
     }
@@ -276,6 +293,19 @@ void extractParameters(String request) {
     String inputValue = request.substring(textPosition + 12, nextParameterPosition);
     if (!inputValue.isEmpty()) {
       settings.scrollDelay = inputValue.toInt();
+    }
+  }
+
+  // extract value for text gap enable
+  textPosition = request.indexOf("gap=");
+  if (textPosition != -1){
+    int nextParameterPosition = request.indexOf("&", textPosition);
+    if (nextParameterPosition == -1) {
+      nextParameterPosition = request.length();
+    }
+    String inputValue = request.substring(textPosition + 4, nextParameterPosition);
+    if (!inputValue.isEmpty()) {
+      settings.gap = inputValue.toInt();
     }
   }
 
@@ -415,6 +445,7 @@ void savePrefs(Preferences& pref, settings_t& set){
 
   pref.putString("submittedText", set.submittedText);
   pref.putUInt("scrollDelay", set.scrollDelay);
+  pref.putUInt("gap", set.gap);
 
   pref.putUInt("textR", set.textR);
   pref.putUInt("textG", set.textG);
@@ -463,6 +494,13 @@ void initPrefs(Preferences& pref, settings_t& set){
     set.scrollDelay = pref.getUInt("scrollDelay");
   }
 
+  if(not pref.isKey("gap")) {
+    set.gap = 1;
+    pref.putUInt("gap", set.gap);
+  } else {
+    set.gap = (uint8_t)pref.getUInt("gap");
+  }
+
   // TEXT COLOR
   if(not pref.isKey("textR")){
     set.textR = 0;
@@ -507,5 +545,5 @@ void initPrefs(Preferences& pref, settings_t& set){
     set.bgB = (uint8_t)pref.getUInt("bgB");
   }
 
-  pref.end(); // Clsoe preferences
+  pref.end(); // Close preferences
 }
