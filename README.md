@@ -41,7 +41,7 @@ Make sure you have the following installed:
 
 2. Open the `HaalariLED.ino` file in Arduino IDE.
 
-3. Configure the settings in the `config.h` file according to your LED matrix specifications. Pay attention to the LED data pin, display size, and other parameters.
+3. Configure the settings in the file according to your LED matrix specifications. Pay attention to the LED data pin, display size, and other parameters.
 
 4. Connect your ESP32 to your computer using a USB cable.
 
