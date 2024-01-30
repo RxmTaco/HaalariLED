@@ -1,3 +1,6 @@
+![qr_code](https://github.com/RxmTaco/HaalariLED/assets/117571946/2da6a087-f680-46f5-b719-3a9d9a8a9a44)
+
+
 # HaalariLED - WiFi Configurable LED Matrix Display
 
 HaalariLED is an ESP32-based microcontroller project designed to drive LED matrix displays. With WiFi connectivity, you can easily configure various display settings using a web interface. This README.md provides comprehensive instructions on how to use, install libraries, and flash the code onto your ESP32 microcontroller.
