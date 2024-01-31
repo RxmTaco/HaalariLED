@@ -89,7 +89,7 @@ void setup() {
 
   initPrefs(prefs, settings); // Load / initialize variables from flash
 
-  // enable all leds
+  // Test LEDs with HSL values
   for(int i = 0; i < LED_NUM; i ++){
     int r, g, b;
     hsl_to_rgb(((float)i/(float)LED_NUM) * 360.0f, 1, 0.2, &r, &g, &b);
@@ -213,7 +213,7 @@ void displayText(String text) {
     // fill matrix buffer
     for(int k = 0; k < text.length(); k++){ // iterate over characters
       // get the matrix representing the current character
-      const uint8_t (&currentChar)[ROWS][5] = getPixelMatrix(text.charAt(k));
+      uint8_t** currentChar = getPixelMatrix(text.charAt(k));
       //int colIndex = k * cols; // shift index for each character
 
       for(int i = 0; i < cols; i++){
@@ -224,6 +224,7 @@ void displayText(String text) {
             dispMatrix[j][k * cols + i] = currentChar[j][i];
         }
       }
+      delete[] currentChar; // delete dynamic array
     }
 
     // Flip the matrix if settings.flipped is not 0
