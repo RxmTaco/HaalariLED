@@ -16,6 +16,13 @@ HaalariLED is an ESP32-based microcontroller project designed to drive LED matri
 
 ## Getting Started
 
+## Usage
+
+1. Connect to the WiFi network provided by the HaalariLED device.
+2. Open a web browser and navigate to the provided IP address: `http://esp.local` or `http://192.168.1.1`.
+3. Configure the display settings according to your preferences.
+4. Click "Submit" to apply the changes.
+
 ### Prerequisites
 
 Make sure you have the following installed:
@@ -54,20 +61,15 @@ Make sure you have the following installed:
 
 7. Click the "Upload" button in the Arduino IDE to flash the code onto your ESP32.
 
-8. Once the code is uploaded, open the Serial Monitor (**Tools > Serial Monitor**) to view the ESP32's IP address.
-
-9. Connect to the displayed IP address via a web browser to access the configuration interface (e.g., `http://192.168.1.1` or `http://esp.local`).
-
-## Usage
-
-1. Connect to the WiFi network provided by the HaalariLED device.
-2. Open a web browser and navigate to the provided IP address.
-3. Configure the display settings according to your preferences.
-4. Click "Submit" to apply the changes.
+8. Connect to the WebUI IP address via a web browser to access the configuration interface (e.g., `http://192.168.1.1` or `http://esp.local`).
 
 ## Factory Reset
 
-In case of forgotten wifi credentials or other problems you can perform a factory reset by shorting pin 5 to ground while the device is powered.
+In case of forgotten wifi credentials or other problems you can perform a factory reset by pushing the button through the hole in the case while the device is powered.
+
+Or by connecting together RST_PIN and RST_SRC while the device is powered.
+
+By default RST_PIN is 7 and RST_SRC is 8
 
 ## Contributing
 

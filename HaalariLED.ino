@@ -31,6 +31,10 @@ SOFTWARE.
 // Custom headers
 #include "Pix_Ascii.h"
 
+// RESET pin
+#define RST_PIN         7
+#define RST_SRC         8
+
 // LED options
 #define LED_PIN         3                   // Data output pin for LED display
 #define LED_ROWS        8                   // Number of rows in the matrix
@@ -50,6 +54,7 @@ const IPAddress subnet(255,255,255,0);      // Subnet mask
 typedef struct {
   String  submittedText;  // The initial text to be shown
   uint    scrollDelay;    // Time between column change while scrolling in milliseconds
+  uint8_t flipped;        // Flipped text
   uint8_t textR;          // Text color RGB values
   uint8_t textG;
   uint8_t textB;
@@ -75,7 +80,10 @@ void setup() {
   htemp.toLowerCase();
   hostname = htemp.c_str();
 
-  pinMode(5, INPUT_PULLUP);
+  pinMode(RST_PIN, INPUT_PULLDOWN);
+  pinMode(RST_SRC, OUTPUT);
+  digitalWrite(RST_SRC, HIGH);      // Write high at setup to keep rst source positive
+
   pixels.begin();
   pixels.clear();
 
@@ -103,7 +111,7 @@ bool wrongpw = false;
 bool credchanged = false;
 void(* resetFunc) (void) = 0;  // declare reset fuction at address 0
 void loop() {
-  if(digitalRead(5) == 0){
+  if(digitalRead(RST_PIN) == HIGH){
     prefs.begin("configs");
     prefs.clear();
     resetFunc(); // call reset
@@ -139,6 +147,7 @@ void loop() {
         client.println("<br>");
         client.printf("Scroll Delay: <input type='text' name='scrollDelay' placeholder='%i'>", settings.scrollDelay); client.println("<br>");
         client.printf("Letter gap: <input type='text' name='gap' placeholder='%i'>", settings.gap); client.println("<br>");
+        client.printf("Flipped: <input type='checkbox' name='flip' %s>", settings.flipped?"checked":""); client.println("<br>");
         client.println("<br>");
         client.println("Color values 0 - 255");
         client.println("<br>");
@@ -188,6 +197,7 @@ uint8_t updateIndex = 0;
 unsigned long currentMillis = 0;
 
 void displayText(String text) {
+
   if(millis() - currentMillis > settings.scrollDelay){
     pixels.clear();
 
@@ -210,6 +220,18 @@ void displayText(String text) {
             dispMatrix[j][k * cols + i] = 0;
           else
             dispMatrix[j][k * cols + i] = currentChar[j][i];
+        }
+      }
+    }
+
+    // Flip the matrix if settings.flipped is 1
+    if(settings.flipped){
+      for (int i = 0; i < ROWS / 2; i++) {
+        for (int j = 0; j < columnLimit; j++) {
+          // Swap elements from top and bottom rows
+          int temp = dispMatrix[i][j];
+          dispMatrix[i][j] = dispMatrix[ROWS - 1 - i][columnLimit - 1 - j];
+          dispMatrix[ROWS - 1 - i][columnLimit - 1 - j] = temp;
         }
       }
     }
@@ -250,12 +272,17 @@ void displayText(String text) {
     }
 
     pixels.show();
-
-    if(updateIndex == columnLimit)
-      updateIndex = 0;
-    else
-      updateIndex++;
-
+    if(settings.flipped){
+      if(updateIndex == 0)
+        updateIndex = columnLimit;
+      else
+        updateIndex--;
+    } else {
+      if(updateIndex == columnLimit)
+        updateIndex = 0;
+      else
+        updateIndex++;
+    }
     currentMillis = millis();
   }
 }
@@ -327,6 +354,17 @@ void extractParameters(String request) {
     String inputValue = request.substring(textPosition + 4, nextParameterPosition);
     if (!inputValue.isEmpty()) {
       settings.gap = inputValue.toInt();
+    }
+  }
+
+  // extract value for text flip enable
+  textPosition = request.indexOf("flip=");
+  int post = request.indexOf("POST");
+  if(post != -1){
+    if (textPosition != -1){
+      settings.flipped = 1;
+    } else {
+      settings.flipped = 0;
     }
   }
 
@@ -467,6 +505,7 @@ void savePrefs(Preferences& pref, settings_t& set){
   pref.putString("submittedText", set.submittedText);
   pref.putUInt("scrollDelay", set.scrollDelay);
   pref.putUInt("gap", set.gap);
+  pref.putUInt("flipped", set.flipped);
 
   pref.putUInt("textR", set.textR);
   pref.putUInt("textG", set.textG);
@@ -520,6 +559,13 @@ void initPrefs(Preferences& pref, settings_t& set){
     pref.putUInt("gap", set.gap);
   } else {
     set.gap = (uint8_t)pref.getUInt("gap");
+  }
+
+  if(not pref.isKey("flipped")) {
+    set.flipped = 0;
+    pref.putUInt("flipped", set.flipped);
+  } else {
+    set.flipped = (uint8_t)pref.getUInt("flipped");
   }
 
   // TEXT COLOR
