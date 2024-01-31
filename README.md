@@ -18,11 +18,13 @@ HaalariLED is an ESP32-based microcontroller project designed to drive LED matri
 
 ## Usage
 
-1. Connect to the WiFi network provided by the HaalariLED device.
+1. Connect to the WiFi network provided by the HaalariLED device, SSID:`ESP-32-HaalariLED` PASSWORD:`12345678`.
 2. Open a web browser and navigate to the provided IP address: `http://esp.local` or `http://192.168.1.1`.
-3. Configure the display settings according to your preferences.
-4. Click "Submit" to apply the changes.
+3. Change WiFi credentials
+4. Configure the display settings according to your preferences.
+5. Click "Submit" to apply the changes.
 
+## Flashing your own firmware
 ### Prerequisites
 
 Make sure you have the following installed:

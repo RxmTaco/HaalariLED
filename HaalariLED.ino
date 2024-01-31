@@ -89,9 +89,11 @@ void setup() {
 
   initPrefs(prefs, settings); // Load / initialize variables from flash
 
-  // Set all leds to 20,20,20
+  // enable all leds
   for(int i = 0; i < LED_NUM; i ++){
-    pixels.setPixelColor(i, pixels.Color(1, 1, 1));
+    int r, g, b;
+    hsl_to_rgb(((float)i/(float)LED_NUM) * 360.0f, 1, 0.2, &r, &g, &b);
+    pixels.setPixelColor(i, pixels.Color(r, g, b));
     pixels.show();
     delay(1);
   }
@@ -224,7 +226,7 @@ void displayText(String text) {
       }
     }
 
-    // Flip the matrix if settings.flipped is 1
+    // Flip the matrix if settings.flipped is not 0
     if(settings.flipped){
       for (int i = 0; i < ROWS / 2; i++) {
         for (int j = 0; j < columnLimit; j++) {
@@ -316,8 +318,56 @@ int hexToDec(char c) {
   return (c >= '0' && c <= '9') ? c - '0' : c - 'A' + 10;
 }
 
+void hsl_to_rgb(float h, float s, float l, int *r, int *g, int *b) {
+  float c, x, m;
+  float tmp_r, tmp_g, tmp_b;
+
+  if (s == 0) {
+    *r = *g = *b = (int)(l * 255);
+    return;
+  }
+
+  c = (1 - fabs(2 * l - 1)) * s;
+  x = c * (1 - fabs(fmod(h / 60.0, 2) - 1));
+  m = l - c / 2.0;
+
+  if (h < 60) {
+    tmp_r = c;
+    tmp_g = x;
+    tmp_b = 0;
+  } else if (h < 120) {
+    tmp_r = x;
+    tmp_g = c;
+    tmp_b = 0;
+  } else if (h < 180) {
+    tmp_r = 0;
+    tmp_g = c;
+    tmp_b = x;
+  } else if (h < 240) {
+    tmp_r = 0;
+    tmp_g = x;
+    tmp_b = c;
+  } else if (h < 300) {
+    tmp_r = x;
+    tmp_g = 0;
+    tmp_b = c;
+  } else {
+    tmp_r = c;
+    tmp_g = 0;
+    tmp_b = x;
+  }
+
+  *r = (int)((tmp_r + m) * 255);
+  *g = (int)((tmp_g + m) * 255);
+  *b = (int)((tmp_b + m) * 255);
+}
+
 // Extract the passed parameters from the HTTP POST request
 void extractParameters(String request) {
+  int post = request.indexOf("POST");
+  if(post == -1)
+    return;
+
   // Extract the value for "inputText"
   int textPosition = request.indexOf("inputText="); // Search for the index of the parameter
   if (textPosition != -1){
@@ -359,13 +409,10 @@ void extractParameters(String request) {
 
   // extract value for text flip enable
   textPosition = request.indexOf("flip=");
-  int post = request.indexOf("POST");
-  if(post != -1){
-    if (textPosition != -1){
-      settings.flipped = 1;
-    } else {
-      settings.flipped = 0;
-    }
+  if (textPosition != -1){
+    settings.flipped = 1;
+  } else {
+    settings.flipped = 0;
   }
 
   // Extract the value for "colorR"
@@ -473,7 +520,7 @@ void extractParameters(String request) {
       String inputValue = request.substring(textPosition + 7, nextParameterPosition);
       if (!inputValue.isEmpty()) {
         if(!wrongpw && pwset){
-          settings.passwd = inputValue; // Change passwd on success
+          settings.passwd = inputValue; // Change password on success
           credchanged = true;
         }
         else wrongpw = true;
