@@ -53,19 +53,22 @@ const IPAddress subnet(255,255,255,0);      // Subnet mask
 // Preferences can be reset to "factory" by shorting pin 5 to GND
 // Settings structure
 typedef struct {
-  String  submittedText;  // The initial text to be shown
-  uint    scrollDelay;    // Time between column change while scrolling in milliseconds
-  uint8_t flipped;        // Flipped text
-  uint8_t vertical;       // Vertical text
-  uint8_t textR;          // Text color RGB values
+  String  submittedText;    // The initial text to be shown
+  uint    scrollDelay;      // Time between column change while scrolling in milliseconds
+  uint8_t flipped;          // Flipped text
+  uint8_t vertical;         // Vertical text
+  uint8_t textR;            // Text color RGB values
   uint8_t textG;
   uint8_t textB;
-  uint8_t bgR;            // Background color RGB values
+  uint8_t bgR;              // Background color RGB values
   uint8_t bgG;
   uint8_t bgB;
   uint8_t gap;
-  String  ssid;           // Default SSID:      ESP-32-HaalariLED
-  String  passwd;         // Default Password:  12345678
+  String  effect;           // Using effects or not
+  uint8_t effectBrightness; // Effect parameters
+  uint8_t effectSpeed;      
+  String  ssid;             // Default SSID:      ESP-32-HaalariLED
+  String  passwd;           // Default Password:  12345678
 } settings_t;
 
 settings_t settings;
@@ -113,6 +116,7 @@ void setup() {
   MDNS.begin(hostname);
 }
 
+
 bool wrongpw = false;
 bool credchanged = false;
 void(* resetFunc) (void) = 0;  // declare reset fuction at address 0
@@ -151,27 +155,44 @@ void loop() {
         client.println("<html><body>");
         client.println("<div id='cont'>");
         client.println("<form action='submit' method='post'>"); // Form parameters
-        client.printf("Text: <input type='text' name='inputText' placeholder='%s'>", settings.submittedText); client.println("<br>");
-        client.println("<br>");
-        client.printf("Scroll Delay: <input type='text' name='scrollDelay' placeholder='%i'>", settings.scrollDelay); client.println("<br>");
-        client.printf("Letter gap: <input type='text' name='gap' placeholder='%i'>", settings.gap); client.println("<br>");
-        client.printf("Flipped: <input type='checkbox' name='flip' %s>", settings.flipped?"checked":""); //client.println("<br>");
-        client.printf("Vertical: <input type='checkbox' name='vert' %s>", settings.flipped?"checked":""); client.println("<br>");
-        client.println("<br>");
-        client.println("Color values 0 - 255");
-        client.println("<br>");
-        client.println("Text color properties:");
-        client.println("<br>");
-        client.printf("Text R: <input type='text' name='colorR' placeholder='%i'>", settings.textR); client.println("<br>");
-        client.printf("Text G: <input type='text' name='colorG' placeholder='%i'>", settings.textG); client.println("<br>");
-        client.printf("Text B: <input type='text' name='colorB' placeholder='%i'>", settings.textB); client.println("<br>");
-        client.println("<br>");
-        client.println("Background:"); 
-        client.println("<br>");
-        client.printf("Background R: <input type='text' name='bgR' placeholder='%i'>", settings.bgR); client.println("<br>");
-        client.printf("Background G: <input type='text' name='bgG' placeholder='%i'>", settings.bgG); client.println("<br>");
-        client.printf("Background B: <input type='text' name='bgB' placeholder='%i'>", settings.bgB); client.println("<br>");
-        client.println("<br>");
+        // Dropdown menu
+        client.println("Effect: <select name='effect'>");
+        client.printf("<option value='text' %s>Text</option>", (settings.effect=="text")?"selected":"");
+        client.printf("<option value='flush' %s>Color Flush</option>", (settings.effect=="flush")?"selected":"");
+        client.printf("<option value='vortex' %s>Color Vortex</option>", (settings.effect=="vortex")?"selected":"");
+        client.println("</select><br><br>");
+
+        // text
+        if(settings.effect == "text"){
+          client.printf("Text: <input type='text' name='inputText' placeholder='%s'>", settings.submittedText); client.println("<br>");
+          client.println("<br>");
+          client.printf("Scroll Delay: <input type='text' name='scrollDelay' placeholder='%i'>", settings.scrollDelay); client.println("<br>");
+          client.printf("Letter gap: <input type='text' name='gap' placeholder='%i'>", settings.gap); client.println("<br>");
+          client.printf("Flipped: <input type='checkbox' name='flip' %s>", settings.flipped?"checked":""); //client.println("<br>");
+          client.printf("Vertical: <input type='checkbox' name='vert' %s>", settings.flipped?"checked":""); client.println("<br>");
+          client.println("<br>");
+          client.println("Color values 0 - 255");
+          client.println("<br>");
+          client.println("Text color properties:");
+          client.println("<br>");
+          client.printf("Text R: <input type='text' name='colorR' placeholder='%i'>", settings.textR); client.println("<br>");
+          client.printf("Text G: <input type='text' name='colorG' placeholder='%i'>", settings.textG); client.println("<br>");
+          client.printf("Text B: <input type='text' name='colorB' placeholder='%i'>", settings.textB); client.println("<br>");
+          client.println("<br>");
+          client.println("Background:"); 
+          client.println("<br>");
+          client.printf("Background R: <input type='text' name='bgR' placeholder='%i'>", settings.bgR); client.println("<br>");
+          client.printf("Background G: <input type='text' name='bgG' placeholder='%i'>", settings.bgG); client.println("<br>");
+          client.printf("Background B: <input type='text' name='bgB' placeholder='%i'>", settings.bgB); client.println("<br>");
+          client.println("<br>");
+        } else if(settings.effect=="flush" || settings.effect=="vortex"){
+          client.println("Effect Brightness %: ");
+          client.printf("<input type='text' name='effB' placeholder='%i'>", settings.effectBrightness); client.println("<br>");
+          client.println("Effect Speed %: ");
+          client.printf("<input type='text' name='effS' placeholder='%i'>", settings.effectSpeed); client.println("<br>");
+        }
+        
+        //Wifi
         client.println("WiFi:"); 
         client.println("<br>");
         client.println("New SSID: <input type='text' name='ssid'>"); client.println("<br>");
@@ -187,7 +208,9 @@ void loop() {
         client.println("<br>");
         //client.println(request);  // Display request for debugging
         client.println("<br>");
-        client.println("<style>");  // CSS styling
+
+        // CSS styling
+        client.println("<style>");
         client.println("*{background:#131313;color:#fff;}body{scale:2;width:100%;height:100vh;display:flex;justify-content:center;align-items:center;}");
         client.println("#cont{border:1px solid #ff00dd;padding:20px;border-radius:20px;box-shadow:0 0 10px #ff00dd;}");
         client.println("</style>");
@@ -199,8 +222,25 @@ void loop() {
     client.stop(); // Disconnect the client
   }
   savePrefs(settings);
-  displayText(settings.submittedText);
+
+
+  // Switch for the current effect
+  if(settings.effect == "text")
+      displayText(settings.submittedText);
+  else if (settings.effect == "flush")
+      displayColorFlush();
+  else if (settings.effect == "vortex")
+      displayColorVortex();
+  else
+      displayText(settings.submittedText);
+
 }
+
+
+uint16_t updateIndex = 0;
+unsigned long currentMillis = 0;
+
+
 
 void flashLeds(int r, int g, int b){
   delay(100);
@@ -212,11 +252,88 @@ void flashLeds(int r, int g, int b){
   delay(100);
 }
 
-uint8_t updateIndex = 0;
-unsigned long currentMillis = 0;
+void displayColorFlush(){
+  int speed = map(settings.effectSpeed, 0, 100, 100, 0);
+
+  if (millis() - currentMillis < speed)
+    return;
+  currentMillis = millis();
+
+  float l = (float)settings.effectBrightness / 100.0f;
+
+  if(updateIndex >= LED_NUM)
+    updateIndex = 0;
+  for(int i = 0; i < LED_NUM; i ++){
+    int r, g, b;
+    hsl_to_rgb(((float)i/(float)LED_NUM) * 360.0f, 1, l, &r, &g, &b);
+
+    int index = updateIndex + i;
+    if(index >= LED_NUM)
+      index -= LED_NUM;
+
+    pixels.setPixelColor(index, pixels.Color(r, g, b));
+  }
+
+  pixels.show();
+
+  updateIndex++;
+}
+
+void displayColorVortex(){
+  pixels.clear();
+  int speed = map(settings.effectSpeed, 0, 100, 100, 1);
+  if (millis() - currentMillis < 1)
+    return;
+  currentMillis = millis();
+
+  float displayMatrix[LED_ROWS][LED_COLS] = {0};
+  float brightness = (float)settings.effectBrightness / 100.0f;
+
+
+  int centerX = LED_COLS / 2;
+  int centerY = LED_ROWS / 2;
+
+  float angle = currentMillis / (float)speed; // Adjust speed of rotation if needed
+  
+  for(int i = 0; i < LED_COLS; i++){ // horizontal
+    for(int j = 0; j < LED_ROWS; j++){ // vertical
+      float dx = i - centerX;
+      float dy = j - centerY;
+      float distance = sqrt(dx * dx + dy * dy);
+      float angle_to_center = atan2(dy, dx) * 180.0 / PI;
+      float sector = fmod(angle_to_center + angle, 360.0);
+      float hue = fmod(sector * 3.0, 360.0); // Divide by 3 to spread colors evenly
+
+      // Clamp hue value within range [0, 360]
+      if (hue < 0)
+        hue += 360;
+      else if (hue >= 360)
+        hue -= 360;
+
+      displayMatrix[j][i] = hue;
+    }
+  }
+
+  // DISPLAY
+  for(int i = 0; i < LED_COLS; i++){ // horizontal
+    for(int j = 0; j < LED_ROWS; j++){ // vertical
+      int row;
+      if(i % 2 == 0)
+        row = j;
+      else
+        row = LED_ROWS - 1 - j;
+      float hue = displayMatrix[row][i];
+      int r, g, b;
+      hsl_to_rgb(hue, 1.0f, brightness, &r, &g, &b);
+      pixels.setPixelColor(j + i * LED_ROWS, pixels.Color(r, g, b));
+    }
+  }
+  
+  pixels.show();
+  updateIndex++;
+}
 
 void displayText(String text) {
-
   if(millis() - currentMillis > settings.scrollDelay){
     pixels.clear();
 
@@ -312,12 +429,12 @@ void displayText(String text) {
 
     pixels.show();
     if(settings.flipped){
-      if(updateIndex == 0)
+      if(updateIndex <= 0)
         updateIndex = columnLimit;
       else
         updateIndex--;
     } else {
-      if(updateIndex == columnLimit)
+      if(updateIndex >= columnLimit)
         updateIndex = 0;
       else
         updateIndex++;
@@ -405,8 +522,55 @@ void extractParameters(String request) {
   if(post == -1)
     return;
 
+  // Extract the value for effect
+  int textPosition = request.indexOf("effect="); // Search for the index of the parameter
+  if (textPosition != -1){
+    int nextParameterPosition = request.indexOf("&", textPosition); // Parameters are separated by an ampersand, so read until one appears
+    if (nextParameterPosition == -1) {
+      nextParameterPosition = request.length();
+    }
+    String inputValue = request.substring(textPosition + 7, nextParameterPosition);  // Apply the value to a global parameter
+    if (!inputValue.isEmpty()) {                                                      // If the parameter is null, continue to next
+      settings.effect = inputValue;
+    }
+  }
+
+  // Extract the values for effect parameters
+  textPosition = request.indexOf("effB=");
+  if (textPosition != -1){
+    int nextParameterPosition = request.indexOf("&", textPosition);
+    if (nextParameterPosition == -1) {
+      nextParameterPosition = request.length();
+    }
+    String inputValue = request.substring(textPosition + 5, nextParameterPosition);
+    if (!inputValue.isEmpty()) {
+      int val = inputValue.toInt();
+      if(val > 100)
+        val = 100;
+      if(val < 0)
+        val = 0;
+      settings.effectBrightness = val;
+    }
+  }
+  textPosition = request.indexOf("effS=");
+  if (textPosition != -1){
+    int nextParameterPosition = request.indexOf("&", textPosition);
+    if (nextParameterPosition == -1) {
+      nextParameterPosition = request.length();
+    }
+    String inputValue = request.substring(textPosition + 5, nextParameterPosition);
+    if (!inputValue.isEmpty()) {
+      int val = inputValue.toInt();
+      if(val > 100)
+        val = 100;
+      if(val < 0)
+        val = 0;
+      settings.effectSpeed = val;
+    }
+  }
+
   // Extract the value for "inputText"
-  int textPosition = request.indexOf("inputText="); // Search for the index of the parameter
+  textPosition = request.indexOf("inputText="); // Search for the index of the parameter
   if (textPosition != -1){
     int nextParameterPosition = request.indexOf("&", textPosition); // Parameters are separated by an ampersand, so read until one appears
     if (nextParameterPosition == -1) {
@@ -440,7 +604,10 @@ void extractParameters(String request) {
     }
     String inputValue = request.substring(textPosition + 4, nextParameterPosition);
     if (!inputValue.isEmpty()) {
-      settings.gap = inputValue.toInt();
+      int val = inputValue.toInt();
+      if(val < 0)
+        val = 0;
+      settings.gap = val;
     }
   }
 
@@ -468,7 +635,12 @@ void extractParameters(String request) {
     }
     String inputValue = request.substring(textPosition + 7, nextParameterPosition);
     if (!inputValue.isEmpty()) {
-      settings.textR = inputValue.toInt();
+      int val = inputValue.toInt();
+      if(val > 255)
+        val = 255;
+      if(val < 0)
+        val = 0;
+      settings.textR = val;
     }
   }
 
@@ -481,7 +653,12 @@ void extractParameters(String request) {
     }
     String inputValue = request.substring(textPosition + 7, nextParameterPosition);
     if (!inputValue.isEmpty()) {
-      settings.textG = inputValue.toInt();
+      int val = inputValue.toInt();
+      if(val > 255)
+        val = 255;
+      if(val < 0)
+        val = 0;
+      settings.textG = val;
     }
   }
 
@@ -494,7 +671,12 @@ void extractParameters(String request) {
     }
     String inputValue = request.substring(textPosition + 7, nextParameterPosition);
     if (!inputValue.isEmpty()) {
-      settings.textB = inputValue.toInt();
+      int val = inputValue.toInt();
+      if(val > 255)
+        val = 255;
+      if(val < 0)
+        val = 0;
+      settings.textB = val;
     }
   }
 
@@ -507,7 +689,12 @@ void extractParameters(String request) {
     }
     String inputValue = request.substring(textPosition + 4, nextParameterPosition);
     if (!inputValue.isEmpty()) {
-      settings.bgR = inputValue.toInt();
+      int val = inputValue.toInt();
+      if(val > 255)
+        val = 255;
+      if(val < 0)
+        val = 0;
+      settings.bgR = val;
     }
   }
 
@@ -520,7 +707,12 @@ void extractParameters(String request) {
     }
     String inputValue = request.substring(textPosition + 4, nextParameterPosition);
     if (!inputValue.isEmpty()) {
-      settings.bgG = inputValue.toInt();
+      int val = inputValue.toInt();
+      if(val > 255)
+        val = 255;
+      if(val < 0)
+        val = 0;
+      settings.bgG = val;
     }
   }
 
@@ -533,7 +725,12 @@ void extractParameters(String request) {
     }
     String inputValue = request.substring(textPosition + 4, nextParameterPosition);
     if (!inputValue.isEmpty()) {
-      settings.bgB = inputValue.toInt();
+      int val = inputValue.toInt();
+      if(val > 255)
+        val = 255;
+      if(val < 0)
+        val = 0;
+      settings.bgB = val;
     }
   }
 
@@ -593,6 +790,11 @@ void extractParameters(String request) {
 void savePrefs(settings_t& set){
   prefs.begin("configs", false); // Open preferences: settings namespace, false for RW mode
 
+  prefs.putString("effect", set.effect);
+
+  prefs.putUInt("effB", set.effectBrightness);
+  prefs.putUInt("effS", set.effectSpeed);
+
   prefs.putString("submittedText", set.submittedText);
   prefs.putUInt("scrollDelay", set.scrollDelay);
   prefs.putUInt("gap", set.gap);
@@ -629,6 +831,28 @@ void initPrefs(settings_t& set){
     prefs.putString("passwd", set.passwd);
   } else {
     set.passwd = prefs.getString("passwd");
+  }
+
+  // Effect
+  if(not prefs.isKey("effect")) {
+    set.effect = "text";
+    prefs.putString("effect", set.effect);
+  } else {
+    set.effect = prefs.getString("effect");
+  }
+
+  if(not prefs.isKey("effB")) {
+    set.effectBrightness = 5;
+    prefs.putUInt("effB", set.effectBrightness);
+  } else {
+    set.effectBrightness = prefs.getUInt("effB");
+  }
+
+  if(not prefs.isKey("effS")) {
+    set.effectSpeed = 70;
+    prefs.putUInt("effS", set.effectSpeed);
+  } else {
+    set.effectSpeed = prefs.getUInt("effS");
   }
 
   // TEXT
