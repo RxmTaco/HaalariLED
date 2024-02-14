@@ -33,6 +33,7 @@ SOFTWARE.
 
 // RESET pin
 #define RST_PIN         7
+#define RST_PIN_AUX     5
 #define RST_SRC         8
 
 // LED options
@@ -55,6 +56,7 @@ typedef struct {
   String  submittedText;  // The initial text to be shown
   uint    scrollDelay;    // Time between column change while scrolling in milliseconds
   uint8_t flipped;        // Flipped text
+  uint8_t vertical;       // Vertical text
   uint8_t textR;          // Text color RGB values
   uint8_t textG;
   uint8_t textB;
@@ -75,19 +77,21 @@ WiFiServer server(PORT);
 Adafruit_NeoPixel pixels(LED_NUM, LED_PIN, NEO_GRB + NEO_KHZ800);
 
 void setup() {
+  delay(2000);
   // Convert hostname to lower case
   String htemp = (String)hostname;
   htemp.toLowerCase();
   hostname = htemp.c_str();
 
-  pinMode(RST_PIN, INPUT_PULLDOWN);
+  pinMode(RST_PIN, INPUT_PULLUP);
+  pinMode(RST_PIN_AUX, INPUT_PULLUP);
   pinMode(RST_SRC, OUTPUT);
-  digitalWrite(RST_SRC, HIGH);      // Write high at setup to keep rst source positive
+  digitalWrite(RST_SRC, LOW);      // Write high at setup to keep rst source positive
 
   pixels.begin();
   pixels.clear();
 
-  initPrefs(prefs, settings); // Load / initialize variables from flash
+  initPrefs(settings); // Load / initialize variables from flash
 
   // Test LEDs with HSL values
   for(int i = 0; i < LED_NUM; i ++){
@@ -113,9 +117,10 @@ bool wrongpw = false;
 bool credchanged = false;
 void(* resetFunc) (void) = 0;  // declare reset fuction at address 0
 void loop() {
-  if(digitalRead(RST_PIN) == HIGH){
-    prefs.begin("configs");
+  if(digitalRead(RST_PIN) == LOW || digitalRead(RST_PIN_AUX) == LOW){
+    prefs.begin("configs", false);
     prefs.clear();
+    prefs.end();
     resetFunc(); // call reset
   }
 
@@ -124,6 +129,7 @@ void loop() {
     resetFunc(); // call reset on credential change
   }
 
+  
   WiFiClient client = server.available(); // Check if a client has connected
 
   if (client) {
@@ -149,7 +155,8 @@ void loop() {
         client.println("<br>");
         client.printf("Scroll Delay: <input type='text' name='scrollDelay' placeholder='%i'>", settings.scrollDelay); client.println("<br>");
         client.printf("Letter gap: <input type='text' name='gap' placeholder='%i'>", settings.gap); client.println("<br>");
-        client.printf("Flipped: <input type='checkbox' name='flip' %s>", settings.flipped?"checked":""); client.println("<br>");
+        client.printf("Flipped: <input type='checkbox' name='flip' %s>", settings.flipped?"checked":""); //client.println("<br>");
+        client.printf("Vertical: <input type='checkbox' name='vert' %s>", settings.flipped?"checked":""); client.println("<br>");
         client.println("<br>");
         client.println("Color values 0 - 255");
         client.println("<br>");
@@ -191,8 +198,18 @@ void loop() {
     delay(100); // Small delay to allow the client to process the response
     client.stop(); // Disconnect the client
   }
-  savePrefs(prefs, settings);
+  savePrefs(settings);
   displayText(settings.submittedText);
+}
+
+void flashLeds(int r, int g, int b){
+  delay(100);
+  pixels.clear();
+  for(int i = 0; i < LED_NUM; i ++){
+    pixels.setPixelColor(i, pixels.Color(r, g, b));
+  }
+  pixels.show();
+  delay(100);
 }
 
 uint8_t updateIndex = 0;
@@ -204,7 +221,7 @@ void displayText(String text) {
     pixels.clear();
 
     int charNum = text.length();
-    uint8_t cols = 5 + settings.gap; // 5 for character and 1 for a blank space between characters
+    uint8_t cols = 5 + settings.gap + (settings.vertical?3:0); // 5 for character and 1 for a blank space between characters
 
     // create display matrix buffer
     int columnLimit = (charNum * cols);
@@ -214,15 +231,34 @@ void displayText(String text) {
     for(int k = 0; k < text.length(); k++){ // iterate over characters
       // get the matrix representing the current character
       uint8_t** currentChar = getPixelMatrix(text.charAt(k));
-      //int colIndex = k * cols; // shift index for each character
+
+      uint8_t charBuffer[ROWS][cols];
+      for(int i = 0; i < cols; i++){
+        for(int j = 0; j < ROWS; j++){
+          if(settings.vertical){
+            if(i < 5)
+              charBuffer[i][j] = currentChar[j][i];
+            else
+             charBuffer[i][j] = 0;
+          } else {
+            if(i < 5)
+              charBuffer[j][i] = currentChar[j][i];
+            else
+             charBuffer[j][i] = 0;
+          }
+        }
+      }
 
       for(int i = 0; i < cols; i++){
         for(int j = 0; j < ROWS; j++){
           if(i >= cols - settings.gap)
             dispMatrix[j][k * cols + i] = 0;
           else
-            dispMatrix[j][k * cols + i] = currentChar[j][i];
+            dispMatrix[j][k * cols + i] = charBuffer[j][i];
         }
+      }
+      for(int i = 0; i < ROWS; i++){
+        delete[] currentChar[i]; // delete dynamic array
       }
       delete[] currentChar; // delete dynamic array
     }
@@ -416,6 +452,13 @@ void extractParameters(String request) {
     settings.flipped = 0;
   }
 
+  textPosition = request.indexOf("vert=");
+  if (textPosition != -1){
+    settings.vertical = 1;
+  } else {
+    settings.vertical = 0;
+  }
+
   // Extract the value for "colorR"
   textPosition = request.indexOf("colorR=");
   if (textPosition != -1){
@@ -547,118 +590,126 @@ void extractParameters(String request) {
   }
 }
 
-void savePrefs(Preferences& pref, settings_t& set){
+void savePrefs(settings_t& set){
   prefs.begin("configs", false); // Open preferences: settings namespace, false for RW mode
 
-  pref.putString("submittedText", set.submittedText);
-  pref.putUInt("scrollDelay", set.scrollDelay);
-  pref.putUInt("gap", set.gap);
-  pref.putUInt("flipped", set.flipped);
+  prefs.putString("submittedText", set.submittedText);
+  prefs.putUInt("scrollDelay", set.scrollDelay);
+  prefs.putUInt("gap", set.gap);
+  prefs.putUInt("flipped", set.flipped);
+  prefs.putUInt("vertical", set.vertical);
 
-  pref.putUInt("textR", set.textR);
-  pref.putUInt("textG", set.textG);
-  pref.putUInt("textB", set.textB);
+  prefs.putUInt("textR", set.textR);
+  prefs.putUInt("textG", set.textG);
+  prefs.putUInt("textB", set.textB);
 
-  pref.putUInt("bgR", set.bgR);
-  pref.putUInt("bgG", set.bgG);
-  pref.putUInt("bgB", set.bgB);
+  prefs.putUInt("bgR", set.bgR);
+  prefs.putUInt("bgG", set.bgG);
+  prefs.putUInt("bgB", set.bgB);
 
-  pref.putString("ssid", set.ssid);
-  pref.putString("passwd", set.passwd);
+  prefs.putString("ssid", set.ssid);
+  prefs.putString("passwd", set.passwd);
 
-  pref.end();
+  prefs.end();
 }
 
-void initPrefs(Preferences& pref, settings_t& set){
+void initPrefs(settings_t& set){
   prefs.begin("configs", false); // Open preferences: settings namespace, false for RW mode
 
   // WIFI
-  if(not pref.isKey("ssid")) {
+  if(not prefs.isKey("ssid")) {
     set.ssid = "ESP-32-HaalariLED";
-    pref.putString("ssid", set.ssid);
+    prefs.putString("ssid", set.ssid);
   } else {
-    set.ssid = pref.getString("ssid");
+    set.ssid = prefs.getString("ssid");
   }
 
-  if(not pref.isKey("passwd")) {
+  if(not prefs.isKey("passwd")) {
     set.passwd = "12345678";
-    pref.putString("passwd", set.passwd);
+    prefs.putString("passwd", set.passwd);
   } else {
-    set.passwd = pref.getString("passwd");
+    set.passwd = prefs.getString("passwd");
   }
 
   // TEXT
-  if(not pref.isKey("submittedText")) {
+  if(not prefs.isKey("submittedText")) {
     set.submittedText = "<SOURCE>   ";
-    pref.putString("submittedText", set.submittedText);
+    prefs.putString("submittedText", set.submittedText);
   } else {
-    set.submittedText = pref.getString("submittedText");
+    set.submittedText = prefs.getString("submittedText");
   }
 
-  if(not pref.isKey("scrollDelay")) {
+  if(not prefs.isKey("scrollDelay")) {
     set.scrollDelay = 150;
-    pref.putUInt("scrollDelay", set.scrollDelay);
+    prefs.putUInt("scrollDelay", set.scrollDelay);
   } else {
-    set.scrollDelay = pref.getUInt("scrollDelay");
+    set.scrollDelay = prefs.getUInt("scrollDelay");
   }
 
-  if(not pref.isKey("gap")) {
+  if(not prefs.isKey("gap")) {
     set.gap = 1;
-    pref.putUInt("gap", set.gap);
+    prefs.putUInt("gap", set.gap);
   } else {
-    set.gap = (uint8_t)pref.getUInt("gap");
+    set.gap = (uint8_t)prefs.getUInt("gap");
   }
 
-  if(not pref.isKey("flipped")) {
+  // Text orientation
+  if(not prefs.isKey("flipped")) {
     set.flipped = 0;
-    pref.putUInt("flipped", set.flipped);
+    prefs.putUInt("flipped", set.flipped);
   } else {
-    set.flipped = (uint8_t)pref.getUInt("flipped");
+    set.flipped = (uint8_t)prefs.getUInt("flipped");
+  }
+  if(not prefs.isKey("vertical")) {
+    set.vertical = 0;
+    prefs.putUInt("vertical", set.vertical);
+  } else {
+    set.vertical = (uint8_t)prefs.getUInt("vertical");
   }
 
   // TEXT COLOR
-  if(not pref.isKey("textR")){
+  if(not prefs.isKey("textR")){
     set.textR = 0;
-    pref.putUInt("textR", set.textR);
+    prefs.putUInt("textR", set.textR);
   } else {
-    set.textR = (uint8_t)pref.getUInt("textR");
+    set.textR = (uint8_t)prefs.getUInt("textR");
   }
 
-  if(not pref.isKey("textG")){
+  if(not prefs.isKey("textG")){
     set.textG = 0;
-    pref.putUInt("textG", set.textG);
+    prefs.putUInt("textG", set.textG);
   } else {
-    set.textG = (uint8_t)pref.getUInt("textG");
+    set.textG = (uint8_t)prefs.getUInt("textG");
   }
 
-  if(not pref.isKey("textB")){
+  if(not prefs.isKey("textB")){
     set.textB = 250;
-    pref.putUInt("textB", set.textB);
+    prefs.putUInt("textB", set.textB);
   } else {
-    set.textB = (uint8_t)pref.getUInt("textB");
+    set.textB = (uint8_t)prefs.getUInt("textB");
   }
 
   // BACKGROUND COLOR
-  if(not pref.isKey("bgR")){
+  if(not prefs.isKey("bgR")){
     set.bgR = 0;
-    pref.putUInt("bgR", set.bgR);
+    prefs.putUInt("bgR", set.bgR);
   } else {
-    set.bgR = (uint8_t)pref.getUInt("bgR");
+    set.bgR = (uint8_t)prefs.getUInt("bgR");
   }
 
-  if(not pref.isKey("bgG")){
+  if(not prefs.isKey("bgG")){
     set.bgG = 0;
-    pref.putUInt("bgG", set.bgG);
+    prefs.putUInt("bgG", set.bgG);
   } else {
-    set.bgG = (uint8_t)pref.getUInt("bgG");
+    set.bgG = (uint8_t)prefs.getUInt("bgG");
   }
 
-  if(not pref.isKey("bgB")){
+  if(not prefs.isKey("bgB")){
     set.bgB = 0;
-    pref.putUInt("bgB", set.bgB);
+    prefs.putUInt("bgB", set.bgB);
   } else {
-    set.bgB = (uint8_t)pref.getUInt("bgB");
+    set.bgB = (uint8_t)prefs.getUInt("bgB");
   }
 
-  pref.end(); // Close preferences
+  prefs.end(); // Close preferences
 }
