@@ -30,6 +30,7 @@ SOFTWARE.
 
 // Custom headers
 #include "Pix_Ascii.h"
+#include "spec.h"
 
 // RESET pin
 #define RST_PIN         7
@@ -41,6 +42,10 @@ SOFTWARE.
 #define LED_ROWS        8                   // Number of rows in the matrix
 #define LED_COLS        32                  // Number of columns in the matrix
 #define LED_NUM         (LED_ROWS*LED_COLS)
+
+// LED Current consumption is checked every time before displaying,
+// If the current is greater than the set limit, the brightness will be uniformally iteratively decreased
+// until the current is within the limit
 
 // WIFI options
 const uint8_t PORT = 80;                    // Server port (HTTP default 80)
@@ -97,9 +102,10 @@ void setup() {
   initPrefs(settings); // Load / initialize variables from flash
 
   // Test LEDs with HSL values
+  float l = 0.01;
   for(int i = 0; i < LED_NUM; i ++){
     int r, g, b;
-    hsl_to_rgb(((float)i/(float)LED_NUM) * 360.0f, 1, 0.2, &r, &g, &b);
+    hsl_to_rgb(((float)i/(float)LED_NUM) * 360.0f, 1, l, &r, &g, &b);
     pixels.setPixelColor(i, pixels.Color(r, g, b));
     pixels.show();
     delay(1);
@@ -240,7 +246,9 @@ void loop() {
 uint16_t updateIndex = 0;
 unsigned long currentMillis = 0;
 
-
+float getCurrent(int r, int g, int b){
+  return (((float)r/255.0f) * CR + ((float)g/255.0f) * CG + ((float)b/255.0f)*CB);
+}
 
 void flashLeds(int r, int g, int b){
   delay(100);
@@ -253,14 +261,15 @@ void flashLeds(int r, int g, int b){
 }
 
 void displayColorFlush(){
+  float current;
   int speed = map(settings.effectSpeed, 0, 100, 100, 0);
 
   if (millis() - currentMillis < speed)
     return;
   currentMillis = millis();
+  
 
   float l = (float)settings.effectBrightness / 100.0f;
-
   if(updateIndex >= LED_NUM)
     updateIndex = 0;
   for(int i = 0; i < LED_NUM; i ++){
@@ -272,6 +281,11 @@ void displayColorFlush(){
       index -= LED_NUM;
 
     pixels.setPixelColor(index, pixels.Color(r, g, b));
+    current += getCurrent(r, g, b);
+    if(current > CLIMIT){
+      settings.effectBrightness--;
+      return;
+    }
   }
 
   pixels.show();
@@ -280,6 +294,7 @@ void displayColorFlush(){
 }
 
 void displayColorVortex(){
+  float current;
   pixels.clear();
   int speed = map(settings.effectSpeed, 0, 100, 100, 1);
   if (millis() - currentMillis < 1)
@@ -287,7 +302,6 @@ void displayColorVortex(){
   currentMillis = millis();
 
   float displayMatrix[LED_ROWS][LED_COLS] = {0};
-  float brightness = (float)settings.effectBrightness / 100.0f;
 
 
   int centerX = LED_COLS / 2;
@@ -295,6 +309,7 @@ void displayColorVortex(){
 
   float angle = currentMillis / (float)speed; // Adjust speed of rotation if needed
   
+  float brightness = (float)settings.effectBrightness / 100.0f;
   for(int i = 0; i < LED_COLS; i++){ // horizontal
     for(int j = 0; j < LED_ROWS; j++){ // vertical
       float dx = i - centerX;
@@ -326,6 +341,12 @@ void displayColorVortex(){
       int r, g, b;
       hsl_to_rgb(hue, 1.0f, brightness, &r, &g, &b);
       pixels.setPixelColor(j + i * LED_ROWS, pixels.Color(r, g, b));
+      current += getCurrent(r, g, b);
+      
+      if(current > CLIMIT){
+        settings.effectBrightness--;
+        return;
+      }
     }
   }
   
@@ -334,6 +355,7 @@ void displayColorVortex(){
 }
 
 void displayText(String text) {
+  float current;
   if(millis() - currentMillis > settings.scrollDelay){
     pixels.clear();
 
@@ -407,6 +429,11 @@ void displayText(String text) {
             (enabled)? settings.textR : settings.bgR, 
             (enabled)? settings.textG : settings.bgG,
             (enabled)? settings.textB : settings.bgB));
+
+          current += getCurrent(
+            (enabled)? settings.textR : settings.bgR, 
+            (enabled)? settings.textG : settings.bgG,
+            (enabled)? settings.textB : settings.bgB);
         }
       }
     } else { // static display
@@ -423,8 +450,30 @@ void displayText(String text) {
             (enabled)? settings.textR : settings.bgR, 
             (enabled)? settings.textG : settings.bgG,
             (enabled)? settings.textB : settings.bgB));
+
+          current += getCurrent(
+            (enabled)? settings.textR : settings.bgR, 
+            (enabled)? settings.textG : settings.bgG,
+            (enabled)? settings.textB : settings.bgB);
         }
       }
+    }
+
+    if(current > CLIMIT){
+      if(settings.textR > 0)
+        settings.textR--;
+      if(settings.textG > 0)
+        settings.textG--;
+      if(settings.textB > 0)
+        settings.textB--;
+      if(settings.bgR > 0)
+        settings.bgR--;
+      if(settings.bgG > 0)
+        settings.bgG--;
+      if(settings.bgB > 0)
+        settings.bgB--;
+      
+      return;
     }
 
     pixels.show();

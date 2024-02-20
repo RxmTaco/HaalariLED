@@ -13,6 +13,7 @@ HaalariLED is an ESP32-based microcontroller project designed to drive LED matri
 - Default configuration for an 8x32 display, with the ability to chain multiple displays.
 - Supports capital Latin letters and most symbols; automatically converts lowercase letters to uppercase.
 - Unsupported characters are displayed as '?'.
+- Output current is limited in firmware. Default limit is 1.0A
 
 ## Getting Started
 
@@ -25,6 +26,10 @@ HaalariLED is an ESP32-based microcontroller project designed to drive LED matri
 3. Change WiFi credentials
 4. Configure the display settings according to your preferences.
 5. Click "Submit" to apply the changes.
+
+Make sure you are using a power supply that can handle a minimum of 1A output current!
+
+If you are using a weaker power supply, change the current limit in `spec.h` and flash the firmware.
 
 ## Flashing your own firmware
 ### Prerequisites
@@ -66,6 +71,20 @@ Make sure you have the following installed:
 7. Click the "Upload" button in the Arduino IDE to flash the code onto your ESP32.
 
 8. Connect to the WebUI IP address via a web browser to access the configuration interface (e.g., `http://192.168.1.1` or `http://esp.local`).
+
+## Issues
+
+The board is disconnecting while plugged to the PC, it might be due to the PC's USB output current limit.
+
+Solution:
+- Connect to a more powerful supply and change brightness to 0, **OR**
+- Start upload and connect board to PC after starting upload, 2 second wait period should allow for new firmware flash
+
+"Wrong password" while connecting to the ESP's access point
+
+Solution:
+- Factory reset board in case of forgotten password
+- Enable `Tools -> Erase All Flash Before Sketch Upload` in Arduino IDE and flash new firmware.
 
 ## Factory Reset
 
