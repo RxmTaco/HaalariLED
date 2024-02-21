@@ -18,8 +18,7 @@ HaalariLED is an ESP32-based microcontroller project designed to drive LED matri
 ## Getting Started
 
 ## Usage
-
-<img src="https://github.com/RxmTaco/HaalariLED/assets/117571946/73ca8d1b-f1ee-4143-9d1a-a300f866ef95" width="280">
+<img src="https://github.com/RxmTaco/HaalariLED/assets/117571946/441f2d54-f6cc-49b3-b1eb-72899b81939c" width="280">
 
 1. Connect to the WiFi network provided by the HaalariLED device, SSID:`ESP-32-HaalariLED` PASSWORD:`12345678`.
 2. Open a web browser and navigate to the provided IP address: `http://esp.local` or `http://192.168.1.1`.
@@ -40,6 +39,9 @@ Make sure you have the following installed:
 - ESP32 board support for Arduino IDE ([Instructions](https://randomnerdtutorials.com/installing-the-esp32-board-in-arduino-ide-windows-instructions/))
 
 ### Installing Libraries
+
+<img src="https://github.com/RxmTaco/HaalariLED/assets/117571946/40fbc814-67db-4ec3-8170-2ec630f4c15c" width="280"> <img src="https://github.com/RxmTaco/HaalariLED/assets/117571946/f32c5526-7cb5-4479-8e80-588fdcfd3fda" width="280"> <img src="https://github.com/RxmTaco/HaalariLED/assets/117571946/2f47d9c4-056e-4ed2-8055-2db4233ca7b3" width="280">
+
 
 1. Open Arduino IDE.
 2. Go to **Sketch > Include Library > Manage Libraries**.
@@ -66,21 +68,26 @@ Make sure you have the following installed:
 
 5. Select your ESP32 board from **Tools > Board** menu.
 
-6. Select the appropriate COM port from **Tools > Port** menu.
+6. Make sure the board settings are correct:
 
-7. Click the "Upload" button in the Arduino IDE to flash the code onto your ESP32.
+<img src="https://github.com/RxmTaco/HaalariLED/assets/117571946/dbbe7d62-54d2-4bba-86d2-e63d61b7923f" width="400">
 
-8. Connect to the WebUI IP address via a web browser to access the configuration interface (e.g., `http://192.168.1.1` or `http://esp.local`).
+
+7. Select the appropriate COM port from **Tools > Port** menu.
+
+8. Click the "Upload" button in the Arduino IDE to flash the code onto your ESP32.
+
+9. Connect to the WebUI IP address via a web browser to access the configuration interface (e.g., `http://192.168.1.1` or `http://esp.local`).
 
 ## Issues
 
-The board is disconnecting while plugged to the PC, it might be due to the PC's USB output current limit.
+**The board is disconnecting while plugged to the PC, it might be due to the PC's USB output current limit.**
 
 Solution:
 - Connect to a more powerful supply and change brightness to 0, **OR**
 - Start upload and connect board to PC after starting upload, 2 second wait period should allow for new firmware flash
 
-"Wrong password" while connecting to the ESP's access point
+**"Wrong password" while connecting to the ESP's access point**
 
 Solution:
 - Factory reset board in case of forgotten password
