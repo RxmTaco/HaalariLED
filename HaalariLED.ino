@@ -105,7 +105,7 @@ void setup() {
   float l = 0.01;
   for(int i = 0; i < LED_NUM; i ++){
     int r, g, b;
-    hsl_to_rgb(((float)i/(float)LED_NUM) * 360.0f, 1, l, &r, &g, &b);
+    hslToRGB(((float)i/(float)LED_NUM) * 360.0f, 1, l, &r, &g, &b);
     pixels.setPixelColor(i, pixels.Color(r, g, b));
     pixels.show();
     delay(1);
@@ -158,7 +158,9 @@ void loop() {
         client.println("HTTP/1.1 200 OK");  // respond 200 for OK
         client.println("Content-Type: text/html");  // Return page HTML in the response
         client.println("");
-        client.println("<html><body>");
+        client.println("<html>");
+        client.println("<head><title>HaalariLED</title></head>");
+        client.println("<body>");
         client.println("<div id='cont'>");
         client.println("<form action='submit' method='post'>"); // Form parameters
         // Dropdown menu
@@ -274,7 +276,7 @@ void displayColorFlush(){
     updateIndex = 0;
   for(int i = 0; i < LED_NUM; i ++){
     int r, g, b;
-    hsl_to_rgb(((float)i/(float)LED_NUM) * 360.0f, 1, l, &r, &g, &b);
+    hslToRGB(((float)i/(float)LED_NUM) * 360.0f, 1, l, &r, &g, &b);
 
     int index = updateIndex + i;
     if(index >= LED_NUM)
@@ -339,7 +341,7 @@ void displayColorVortex(){
         row = LED_ROWS - 1 - j;
       float hue = displayMatrix[row][i];
       int r, g, b;
-      hsl_to_rgb(hue, 1.0f, brightness, &r, &g, &b);
+      hslToRGB(hue, 1.0f, brightness, &r, &g, &b);
       pixels.setPixelColor(j + i * LED_ROWS, pixels.Color(r, g, b));
       current += getCurrent(r, g, b);
       
@@ -521,7 +523,30 @@ int hexToDec(char c) {
   return (c >= '0' && c <= '9') ? c - '0' : c - 'A' + 10;
 }
 
-void hsl_to_rgb(float h, float s, float l, int *r, int *g, int *b) {
+String decToHex(int decimal) {
+  String hex = ""; // Initialize an empty string to store the hexadecimal representation
+  // Iterate until decimal is greater than 0
+  while (decimal > 0) {
+    int remainder = decimal % 16;
+    // Convert remainder to hexadecimal digit
+    if (remainder < 10) {
+        hex = char('0' + remainder) + hex;
+    } else {
+        hex = char('A' + remainder - 10) + hex;
+    }
+    
+    decimal /= 16;
+  }
+  
+  // If the number is 0, store '0' in the string
+  if (hex == "") {
+    hex = "0";
+  }
+  
+  return hex;
+}
+
+void hslToRGB(float h, float s, float l, int *r, int *g, int *b) {
   float c, x, m;
   float tmp_r, tmp_g, tmp_b;
 
