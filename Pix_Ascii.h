@@ -189,6 +189,10 @@ const uint8_t (&getByteMap(char character))[ROWS] {
         return pix_SingleQuote;
     case '\\':
         return pix_BackSlash;
+    case '.':
+        return pix_Period;
+    case ',':
+        return pix_Comma;
 
     default:
         printf("Character not supported: %c\n", character);
