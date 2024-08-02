@@ -92,9 +92,9 @@ void setup() {
   hostname = htemp.c_str();
 
   pinMode(RST_PIN, INPUT_PULLUP);
-  pinMode(RST_PIN_AUX, INPUT_PULLUP);
-  pinMode(RST_SRC, OUTPUT);
-  digitalWrite(RST_SRC, LOW);      // Write high at setup to keep rst source positive
+  //pinMode(RST_PIN_AUX, INPUT_PULLUP);
+  //pinMode(RST_SRC, OUTPUT);
+  //digitalWrite(RST_SRC, LOW);      // Write high at setup to keep rst source positive
 
   pixels.begin();
   pixels.clear();
@@ -127,7 +127,7 @@ bool wrongpw = false;
 bool credchanged = false;
 void(* resetFunc) (void) = 0;  // declare reset fuction at address 0
 void loop() {
-  if(digitalRead(RST_PIN) == LOW || digitalRead(RST_PIN_AUX) == LOW){
+  if(digitalRead(RST_PIN) == LOW /*|| digitalRead(RST_PIN_AUX) == LOW*/){
     prefs.begin("configs", false);
     prefs.clear();
     prefs.end();
@@ -654,6 +654,7 @@ void extractParameters(String request) {
     if (!inputValue.isEmpty()) {                                                      // If the parameter is null, continue to next
       settings.submittedText = urldecode(inputValue);
     }
+    inputValue.toUpperCase();
   }
 
   // Extract the value for "scrollDelay"

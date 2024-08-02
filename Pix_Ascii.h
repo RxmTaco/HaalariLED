@@ -1,3 +1,4 @@
+#include <cstddef>
 #include <sys/_stdint.h>
 #ifndef Pix_Ascii
 #define Pix_Ascii
@@ -26,11 +27,10 @@ SOFTWARE.
 */
 
 #include "chars.h"
+#include <string.h>
 #define ROWS 8
 
 const uint8_t (&getByteMap(char character))[ROWS] {
-
-
   switch (character) {
     // Uppercase letters
     case 'A':
@@ -216,5 +216,16 @@ uint8_t** getPixelMatrix(char character){
 
   return arr;
 }
+
+/*
+void toUpper(char* src){
+  uint16_t i = 0;
+  while (src[i] != '\0'){
+    if((src[i] & (1<<5)) && !(src[i] & (1<<4)))
+      src[i] = src[i] & ~(1<<5);
+    i++;
+  }
+}
+*/
 
 #endif

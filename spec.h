@@ -25,7 +25,7 @@ SOFTWARE.
 */
 
 // Current limit is implemented to prevent the display getting stuck in a boot loop due to power supply resetting
-#define CLIMIT 1.0  // Amperes LIMIT  // Change this according to the capabilities of your power supply
+#define CLIMIT 2.0  // Amperes LIMIT  // Change this according to the capabilities of your power supply
 #define CR 0.012    // Amperes RED    // These values have been measured with a 2.0A load
 #define CG 0.012    // Amperes GREEN
 #define CB 0.012    // Amperes BLUE
